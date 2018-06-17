@@ -1,37 +1,56 @@
 'use strict'
 
-var crypto = require('crypto')
+const crypto = require('crypto')
 
-var encryptValue, decryptValue, encryptObject, decryptObject
+let encryptValue, decryptValue, encryptObject, decryptObject
 
-function decrypt (password, algorithm, enc) {
-  return function (value) {
-    var decipher = crypto.createDecipher(algorithm, password)
-    return JSON.parse(decipher.update(value, enc, 'utf8') +
-      decipher.final('utf8'))
-  }
+const decrypt = (pw, algo, enc) => (value) => {
+  const decipher = crypto.createDecipher(algo, pw)
+
+  return JSON.parse(decipher.update(value, enc, 'utf8') +
+    decipher.final('utf8'))
 }
 
-function encrypt (password, algorithm, enc) {
-  return function (value) {
-    var cipher = crypto.createCipher(algorithm, password)
-    return cipher.update(JSON.stringify(value), 'utf8', enc) +
-      cipher.final(enc)
-  }
+const encrypt = (pw, algo, enc) => (value) => {
+  const cipher = crypto.createCipher(algo, pw)
+
+  return cipher.update(JSON.stringify(value), 'utf8', enc) +
+    cipher.final(enc)
 }
 
 function cryptFunction (type) {
   return function (object, keys, isArray) {
-    var objectKeys
-    if (!isArray) objectKeys = Object.keys(object)
-    var cryptValue = (type === 'encrypt') ? encryptValue : decryptValue
-    var cryptObject = (type === 'encrypt') ? encryptObject : decryptObject
-    var output = isArray ? [] : {}
-    var length = isArray ? object.length : objectKeys.length
+    const cryptValue = (type === 'encrypt') ? encryptValue : decryptValue
+    const cryptObject = (type === 'encrypt') ? encryptObject : decryptObject
+    const output = isArray ? object.map(e => e) : Object.assign({}, object)
+    const length = isArray ? object.length : keys.length
 
-    for (var i = 0; i < length; i++) {
-      var key = isArray ? i : objectKeys[i]
-      if (!keys.length || (!isArray && keys.indexOf(key) === -1)) {
+    if (keys.length === 0) {
+      for (let i = 0, len = Object.keys(object).length; i < len; i++) {
+        const key = isArray ? i : Object.keys(object)[i]
+
+        if (typeof object[key] !== 'undefined') {
+          output[key] = object[key]
+
+          if (typeof object[key] !== 'object') {
+            output[key] = cryptValue(object[key])
+          } else if (Array.isArray(object[key])) {
+            output[key] = cryptObject(object[key], keys, true)
+          } else {
+            output[key] = cryptObject(object[key], keys)
+          }
+        }
+      }
+
+      return output
+    }
+
+    for (let i = 0; i < length; i++) {
+      const key = isArray ? i : keys[i]
+
+      if (typeof object[key] !== 'undefined') {
+        output[key] = object[key]
+
         if (typeof object[key] !== 'object') {
           output[key] = cryptValue(object[key])
         } else if (Array.isArray(object[key])) {
@@ -39,8 +58,6 @@ function cryptFunction (type) {
         } else {
           output[key] = cryptObject(object[key], keys)
         }
-      } else {
-        output[key] = object[key]
       }
     }
 
@@ -49,9 +66,10 @@ function cryptFunction (type) {
 }
 
 exports.encrypt = function (object, password, config) {
-  var encoding = config ? (config.encoding || 'hex') : 'hex'
-  var algorithm = config ? (config.algorithm || 'aes256') : 'aes256'
-  var keys = config.keys || []
+  config = config || {}
+  const encoding = config ? (config.encoding || 'hex') : 'hex'
+  const algorithm = config ? (config.algorithm || 'aes256') : 'aes256'
+  const keys = config.keys || []
 
   if (!object || typeof object !== 'object' || Array.isArray(object)) {
     throw new Error('First argument must be an object.')
@@ -67,9 +85,10 @@ exports.encrypt = function (object, password, config) {
 }
 
 exports.decrypt = function (object, password, config) {
-  var encoding = config ? (config.encoding || 'hex') : 'hex'
-  var algorithm = config ? (config.algorithm || 'aes256') : 'aes256'
-  var keys = config.keys || []
+  config = config || {}
+  const encoding = config ? (config.encoding || 'hex') : 'hex'
+  const algorithm = config ? (config.algorithm || 'aes256') : 'aes256'
+  const keys = config.keys || []
 
   if (!object || typeof object !== 'object' || Array.isArray(object)) {
     throw new Error('First argument must be an object.')
